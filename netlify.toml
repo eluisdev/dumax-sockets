@@ -4,7 +4,7 @@
 [build]
   base    = "tmux-session-frontend"
   command = "npm install && npm run build"
-  publish = "tmux-session-frontend/dist"
+  publish = "dist"
 
 [build.environment]
   NODE_VERSION = "20"
