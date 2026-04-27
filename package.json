@@ -1,0 +1,21 @@
+{
+  "name": "tmux-monitor-monorepo",
+  "version": "1.0.0",
+  "description": "TmuxMonitor — Frontend (Netlify) + Backend Express/Socket.io/SSH2 (Render)",
+  "private": true,
+  "workspaces": [
+    "tmux-session-frontend",
+    "tmux-session-backend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm --workspace tmux-session-frontend run dev",
+    "dev:backend":  "npm --workspace tmux-session-backend run dev",
+    "build:frontend": "npm --workspace tmux-session-frontend run build",
+    "build:backend":  "npm --workspace tmux-session-backend run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "install:all": "npm install"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,42 @@
+# Render Blueprint para el backend Node + Socket.io + SSH2
+# https://render.com/docs/blueprint-spec
+#
+# Cómo usarlo:
+#   1. Sube el monorepo a GitHub
+#   2. En Render → "New +" → "Blueprint" → conecta el repo
+#   3. Render detecta este archivo y crea el servicio
+#   4. Llena las variables marcadas con sync:false en el dashboard de Render
+
+services:
+  - type: web
+    name: tmux-monitor-backend
+    runtime: node
+    region: oregon          # cámbialo si quieres otra región
+    plan: free              # 750h/mes; se duerme tras 15min
+    rootDir: tmux-session-backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # PORT lo asigna Render automáticamente, no lo definas tú.
+
+      # Pega aquí (en el dashboard) la URL de Netlify cuando la tengas.
+      # Acepta varias separadas por coma:  https://tu-app.netlify.app,https://tu-dominio.com
+      - key: FRONTEND_URL
+        sync: false
+
+      # JSON con la lista de servidores SSH.
+      # Para servidores con LLAVE usa "keyEnv":"WIALON_SSH_KEY" en vez de keyPath.
+      # Para servidores con CONTRASEÑA usa "password":"..."
+      - key: SSH_SERVERS
+        sync: false
+
+      # Contenido completo del archivo id_ed25519 (incluyendo BEGIN/END).
+      # Render acepta multiline, no necesitas escapar \n.
+      - key: WIALON_SSH_KEY
+        sync: false

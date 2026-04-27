@@ -1,0 +1,47 @@
+# ── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ── Build outputs ───────────────────────────────────────────────────────────
+dist/
+build/
+*.tsbuildinfo
+tmux-session-backend/dist/
+tmux-session-frontend/dist/
+
+# ── Logs ────────────────────────────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# ── Env / secrets ───────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ── SSH KEYS — NUNCA SUBIR AL REPO ──────────────────────────────────────────
+tmux-session-backend/keys/
+*.pem
+id_ed25519
+id_ed25519.pub
+id_rsa
+id_rsa.pub
+
+# ── IDE ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Netlify / Render ────────────────────────────────────────────────────────
+.netlify/
+.render/
+
+# ── Vite ────────────────────────────────────────────────────────────────────
+.vite/

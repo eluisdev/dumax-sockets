@@ -1,0 +1,16 @@
+# Netlify config para el frontend del monorepo.
+# Netlify clona el repo completo y solo construye la carpeta del frontend.
+
+[build]
+  base    = "tmux-session-frontend"
+  command = "npm install && npm run build"
+  publish = "tmux-session-frontend/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback: cualquier ruta cae en index.html
+[[redirects]]
+  from = "/*"
+  to   = "/index.html"
+  status = 200

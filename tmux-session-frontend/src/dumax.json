@@ -1,0 +1,118 @@
+{
+  "id": "dumax",
+  "name": "Dumax",
+
+  "brand": {
+    "primary": "#74FA4C",
+    "primaryHover": "#4ade80",
+    "accent": "#166534",
+    "logoFill": "#232323"
+  },
+
+  "colors": {
+    "primary": {
+      "50": "#f0fdf4",
+      "100": "#dcfce7",
+      "200": "#bbf7d0",
+      "300": "#86efac",
+      "400": "#4ade80",
+      "500": "#74FA4C",
+      "600": "#16a34a",
+      "700": "#15803d",
+      "800": "#166534",
+      "900": "#14532d"
+    },
+    "dark": {
+      "bg": "#1A1A1A",
+      "surface": "#2B2B2B",
+      "card": "#3A3A3A",
+      "border": "#4A4A4A",
+      "hover": "#5A5A5A"
+    },
+    "light": {
+      "bg": "#ffffff",
+      "surface": "#f9fafb",
+      "card": "#ffffff",
+      "border": "#e5e7eb",
+      "borderSecondary": "#d1d5db",
+      "hover": "#f3f4f6"
+    },
+    "text": {
+      "dark": {
+        "primary": "#ffffff",
+        "secondary": "#9ca3af",
+        "muted": "#6b7280"
+      },
+      "light": {
+        "primary": "#111827",
+        "secondary": "#374151",
+        "muted": "#6b7280",
+        "subtle": "#9ca3af"
+      }
+    },
+    "status": {
+      "error": "#ef4444",
+      "errorLight": "rgba(239, 68, 68, 0.2)",
+      "success": "#22c55e",
+      "warning": "#f59e0b",
+      "info": "#3b82f6"
+    },
+    "overlay": {
+      "loginBg": "#bfbfbf",
+      "loginBgDark": "#1A1A1A",
+      "imageOverlay": "rgba(0,0,0,0.60)"
+    }
+  },
+
+  "fonts": {
+    "sans": ["Inter", "system-ui", "sans-serif"],
+    "display": ["Pacifico", "serif"],
+    "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Pacifico&family=Inter:wght@400;500;600;700&display=swap"
+  },
+
+  "assets": {
+    "logo": {
+      "main": "Logo.svg",
+      "splash": "LogoSplash.svg",
+      "favicon": "favicon.ico"
+    },
+    "backgrounds": {
+      "main": "tdc_background.png"
+    },
+    "partner": {
+      "light": "coding-cloud-logo-light.png",
+      "dark": "coding-cloud-logo-dark.png"
+    }
+  },
+
+  "pwa": {
+    "name": "DUMAX - Plataforma de Seguimiento de Equipos",
+    "shortName": "DUMAX",
+    "description": "Plataforma avanzada de seguimiento y gestión de equipos con monitoreo GPS en tiempo real"
+  },
+
+  "shadows": {
+    "card": "0px 4px 10px rgba(0,0,0,0.1)",
+    "dropdown": "0 10px 25px -5px rgb(0 0 0 / 0.25)",
+    "logo": "0_8px_48px_rgba(0,0,0,0.95)"
+  },
+
+  "radii": {
+    "sm": "0.25rem",
+    "md": "0.375rem",
+    "lg": "0.5rem",
+    "xl": "0.75rem",
+    "2xl": "1rem"
+  },
+
+  "zIndex": {
+    "base": 0,
+    "dropdown": 50,
+    "sticky": 60,
+    "overlay": 70,
+    "modal": 80,
+    "popover": 90,
+    "tooltip": 100,
+    "selectMenu": 99999
+  }
+}
