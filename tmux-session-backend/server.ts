@@ -183,13 +183,27 @@ io.on("connection", (socket: Socket) => {
 
   function destroySsh() {
     stopAll();
-    if (ssh) { try { ssh.end(); } catch {} ssh = null; }
+    if (ssh) {
+      try {
+        // Detach handlers so the close of the OLD client never triggers
+        // the auto-reconnect path (root cause of duplicate "reconectando" toasts
+        // when switching servers e.g. Wialon → DUMAX v4).
+        ssh.removeAllListeners("close");
+        ssh.removeAllListeners("error");
+        ssh.removeAllListeners("ready");
+        ssh.end();
+      } catch {}
+      ssh = null;
+    }
     sshReady = false;
   }
 
   function connectSsh(serverId: string, isReconnect = false) {
+    // Treat any in-flight switch as intentional so no stray reconnect fires.
+    intentionalDisconnect = true;
     destroySsh();
     intentionalDisconnect = false;
+    reconnectCount = 0;
 
     const srv = getServerConfig(serverId);
     if (!srv) {
