@@ -19,6 +19,7 @@ interface SshServer {
   keyEnv?: string;       // name of env var holding the raw private key (preferred for cloud deploys)
   passphrase?: string;
   password?: string;
+  basePath?: string;     // optional: root folder where session subfolders live (overrides label heuristic)
 }
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -132,6 +133,18 @@ function execSsh(ssh: Client, cmd: string, timeoutMs = 10_000): Promise<string> 
       stream.on("close", () => { clearTimeout(timer); resolve(out); });
     });
   });
+}
+
+// Resolve where session folders live for a given server.
+// Per-server `basePath` (in SSH_SERVERS env) wins; otherwise we infer from the label.
+function getBasePath(srv: SshServer): string {
+  if (srv.basePath) return srv.basePath;
+  const label = srv.label.toLowerCase();
+  if (label.includes("wialon")) return "~/apps/wialonWebHooks";
+  // v2 antes que v4/dumax: "Dumax V2" caería en la rama dumax y devolvería el path equivocado
+  if (label.includes("v2")) return "~/apps/webservices";
+  if (label.includes("v4") || label.includes("dumax")) return "~/webservices";
+  return "";
 }
 
 function buildAwkCmd(session: string, pane: string, imei: string, plate = "", histLines = 5000): string {
@@ -382,6 +395,125 @@ io.on("connection", (socket: Socket) => {
     };
 
     search();
+  });
+
+  // Restart session:
+  //   1. Lista los binarios YYYYMMDDHHMM_* en la carpeta de la sesión y toma el más reciente.
+  //   2. Verifica que el pane esté en un prompt de shell (no escribir dentro de un proceso vivo).
+  //   3. Inyecta `cd {sessionDir} && ./{binary}` con tmux send-keys, simulando lo que el usuario
+  //      hace a mano cuando el WS muere.
+  // El stream live ya está leyendo el mismo pane, así que el output del nuevo proceso aparece
+  // automáticamente en el frontend sin acciones adicionales.
+  socket.on("restart_session", async ({ session }: { session: string }) => {
+    if (!sshReady || !ssh || !lastServerId) {
+      socket.emit("restart_session_result", { ok: false, error: "SSH no conectado" });
+      return;
+    }
+    const srv = getServerConfig(lastServerId);
+    if (!srv) {
+      socket.emit("restart_session_result", { ok: false, error: "Servidor no encontrado" });
+      return;
+    }
+    const basePath = getBasePath(srv);
+    if (!basePath) {
+      socket.emit("restart_session_result", {
+        ok: false,
+        error: `Sin basePath para servidor "${srv.label}". Configúralo en SSH_SERVERS.`,
+      });
+      return;
+    }
+
+    // Sanity check: solo permitimos chars seguros en session/binary/path para no abrir
+    // shell-injection a través de send-keys.
+    const SAFE = /^[A-Za-z0-9_./~-]+$/;
+    if (!SAFE.test(session)) {
+      socket.emit("restart_session_result", { ok: false, error: `Nombre de sesión inválido: ${session}` });
+      return;
+    }
+
+    const sessionDir = `${basePath}/${session}`;
+    const pane = "0.0";
+
+    // Listar candidatos por patrón timestamp YYYYMMDDHHMM_*, desc por nombre.
+    const listCmd = [
+      `ls -1 ${sessionDir} 2>/dev/null`,
+      `| grep -E '^[0-9]{12}_'`,
+      `| sort -r`,
+      `| head -5`,
+    ].join(" ");
+
+    try {
+      const out = await execSsh(ssh, listCmd);
+      const candidates = out.split("\n").map((s) => s.trim()).filter(Boolean);
+
+      if (candidates.length === 0) {
+        socket.emit("restart_session_result", {
+          ok: false,
+          error: `No se detectó binario ejecutable con patrón YYYYMMDDHHMM_* en ${sessionDir}`,
+          sessionDir,
+          basePath,
+        });
+        return;
+      }
+
+      const binary = candidates[0];
+      if (!SAFE.test(binary)) {
+        socket.emit("restart_session_result", {
+          ok: false,
+          error: `Nombre de binario inválido: ${binary}`,
+          sessionDir,
+          binary,
+        });
+        return;
+      }
+
+      // Safety: capturar el pane y verificar que la última línea no vacía sea un prompt
+      // de shell. Si no lo es, hay un proceso corriendo y NO debemos teclear el comando
+      // dentro de su stdin.
+      const paneTarget = `${session}:${pane}`;
+      const captureCmd = `tmux capture-pane -p -J -t ${paneTarget} 2>/dev/null | tail -20`;
+      const paneOut = await execSsh(ssh, captureCmd);
+      const paneLines = paneOut.split("\n").map((l) => l.trim()).filter(Boolean);
+      const lastLine = paneLines[paneLines.length - 1] || "";
+      const promptRe = /^[A-Za-z][\w.-]*@[\w.-]+:\S*\$(\s|$)/;
+
+      if (!promptRe.test(lastLine)) {
+        socket.emit("restart_session_result", {
+          ok: false,
+          error: "El pane no está en un prompt de shell — parece haber un proceso vivo. Cancelado para no escribir dentro del proceso.",
+          sessionDir,
+          binary,
+          candidates,
+          lastLine,
+        });
+        return;
+      }
+
+      // Ejecutar: tecleamos el comando + Enter en el pane existente. El shell del
+      // pane resolverá `~` y correrá el binario.
+      const command = `cd ${sessionDir} && ./${binary}`;
+      const sendKeysCmd = `tmux send-keys -t ${paneTarget} '${command}' Enter`;
+      await execSsh(ssh, sendKeysCmd);
+
+      console.log(`[socket:${sid}] restart_session → ${paneTarget} :: ${command}`);
+
+      socket.emit("restart_session_result", {
+        ok: true,
+        executed: true,
+        session,
+        sessionDir,
+        basePath,
+        binary,
+        candidates,
+        command,
+      });
+    } catch (e) {
+      socket.emit("restart_session_result", {
+        ok: false,
+        error: (e as Error).message,
+        sessionDir,
+      });
+    }
   });
 
   socket.on("cancel_search", () => {
