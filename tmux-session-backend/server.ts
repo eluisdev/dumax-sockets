@@ -289,19 +289,27 @@ io.on("connection", (socket: Socket) => {
     stopStream();
 
     const cmd = `tmux capture-pane -p -J -S -${lines} -t ${session}:${pane} 2>/dev/null`;
+    let lastOut = "";
+    let inFlight = false;
 
     const poll = async () => {
-      if (!sshReady || !ssh) return;
+      if (!sshReady || !ssh || inFlight) return;
+      inFlight = true;
       try {
         const out = await execSsh(ssh, cmd);
-        socket.emit("stream_data", out);
+        if (out !== lastOut) {
+          lastOut = out;
+          socket.emit("stream_data", out);
+        }
       } catch (e) {
         console.error(`[socket:${sid}] stream poll error: ${(e as Error).message}`);
+      } finally {
+        inFlight = false;
       }
     };
 
     poll();
-    streamTimer = setInterval(poll, 2000);
+    streamTimer = setInterval(poll, 3000);
     socket.emit("stream_started", `${session}:${pane}`);
   }
 
