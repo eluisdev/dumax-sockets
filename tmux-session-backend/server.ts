@@ -180,6 +180,8 @@ io.on("connection", (socket: Socket) => {
   let intentionalDisconnect = false;
   // Track current stream so we can resume after reconnect
   let activeStream: { session: string; pane: string; lines: number } | null = null;
+  // Track if XML search paused the stream, so we can resume it on cancel/found/not_found
+  let streamPausedForSearch: { session: string; pane: string; lines: number } | null = null;
 
   function stopStream() {
     if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
@@ -194,8 +196,19 @@ io.on("connection", (socket: Socket) => {
     stopSearch();
   }
 
+  function resumeStreamAfterSearch() {
+    if (streamPausedForSearch && sshReady && ssh) {
+      const s = streamPausedForSearch;
+      streamPausedForSearch = null;
+      doStartStream(s.session, s.pane, s.lines);
+    } else {
+      streamPausedForSearch = null;
+    }
+  }
+
   function destroySsh() {
     stopAll();
+    streamPausedForSearch = null;
     if (ssh) {
       try {
         // Detach handlers so the close of the OLD client never triggers
@@ -309,7 +322,7 @@ io.on("connection", (socket: Socket) => {
     };
 
     poll();
-    streamTimer = setInterval(poll, 3000);
+    streamTimer = setInterval(poll, 2000);
     socket.emit("stream_started", `${session}:${pane}`);
   }
 
@@ -338,9 +351,10 @@ io.on("connection", (socket: Socket) => {
   socket.on("switch_session", ({ session, pane = "0.0", resumeStream = false }: {
     session: string; pane?: string; resumeStream?: boolean;
   }) => {
-    const wasStreaming = !!streamTimer;
+    const wasStreaming = !!streamTimer || !!streamPausedForSearch;
     const wasSearching = !!searchTimer;
     stopAll();
+    streamPausedForSearch = null;
 
     if (wasStreaming) socket.emit("stream_stopped");
     if (wasSearching) socket.emit("xml_status", { status: "cancelled", msg: "Búsqueda cancelada por cambio de sesión", attempt: 0, max: 30 });
@@ -361,28 +375,41 @@ io.on("connection", (socket: Socket) => {
     if (!sshReady || !ssh) { socket.emit("error_msg", "SSH no conectado"); return; }
     stopSearch();
 
-    const MAX  = 30;
-    const WAIT = 20000;
+    const MAX  = 20;       // 20 intentos × 30s = 10 min total
+    const WAIT = 30000;    // 30s entre intentos (antes 20s)
     let n = 0;
+
+    // Pausar el stream Live durante la búsqueda para liberar el canal SSH
+    // y reducir carga en el servidor remoto. Lo restauramos al terminar.
+    if (streamTimer && activeStream) {
+      streamPausedForSearch = activeStream;
+      stopStream();
+    }
 
     socket.emit("xml_status", { status: "searching", msg: `Iniciando búsqueda de ${imei}...`, attempt: 0, max: MAX });
 
     const search = async () => {
       if (!sshReady || !ssh) {
         socket.emit("xml_status", { status: "cancelled", msg: "SSH desconectado durante búsqueda", attempt: n, max: MAX });
+        resumeStreamAfterSearch();
         return;
       }
       n++;
       socket.emit("xml_status", { status: "searching", msg: `Intento ${n}/${MAX} — ${imei}`, attempt: n, max: MAX });
 
+      // Escalado progresivo del scrollback: empezar pequeño y crecer.
+      // 95% de los XMLs aparecen en logs recientes — leer 5000 líneas siempre es desperdicio.
+      const histLines = n <= 3 ? 500 : n <= 10 ? 1500 : 5000;
+
       try {
-        const cmd = buildAwkCmd(session, pane, imei, plate);
+        const cmd = buildAwkCmd(session, pane, imei, plate, histLines);
         const out = await execSsh(ssh!, cmd);
         const outStr = String(out);
 
         if (outStr.includes("%%XML_START%%")) {
           const xml = outStr.split("%%XML_START%%")[1].split("%%XML_END%%")[0].trim();
           socket.emit("xml_found", { imei, plate, xml, attempt: n });
+          resumeStreamAfterSearch();
           return;
         }
       } catch (e) {
@@ -396,6 +423,7 @@ io.on("connection", (socket: Socket) => {
           attempt: n,
           max: MAX,
         });
+        resumeStreamAfterSearch();
         return;
       }
 
@@ -526,7 +554,8 @@ io.on("connection", (socket: Socket) => {
 
   socket.on("cancel_search", () => {
     stopSearch();
-    socket.emit("xml_status", { status: "cancelled", msg: "Búsqueda cancelada", attempt: 0, max: 30 });
+    resumeStreamAfterSearch();
+    socket.emit("xml_status", { status: "cancelled", msg: "Búsqueda cancelada", attempt: 0, max: 20 });
   });
 
   socket.on("disconnect_server", () => {
